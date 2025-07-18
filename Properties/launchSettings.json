@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Hackathon": {
+      "commandName": "Project",
+      "commandLineArgs": "--scan C:\\Users\\User\\Source\\Repos\\todo-list-app\\TodoListApp.WebApp\r\n"
+    }
+  }
+}
