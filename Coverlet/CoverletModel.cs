@@ -8,7 +8,7 @@ namespace TestGenerator.Coverlet
 {
     public class CoverletModel
     {
-        public string FileName { get; set; }
+        public string ClassName { get; set; }
         public double Coverage { get; set; }    
     }
 }

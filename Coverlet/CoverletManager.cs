@@ -15,7 +15,7 @@ namespace TestGenerator.Coverlet
             );
         }
 
-        public static List<CoverletModel> GetCoveragePerFile(string projectTestsPath)
+        public static List<CoverletModel> GetCoveragePerClass(string projectTestsPath)
         {
             // Find the latest TestResults folder with coverage
             var resultsDir = Path.Combine(projectTestsPath, "TestResults");
@@ -41,7 +41,7 @@ namespace TestGenerator.Coverlet
             var classCoverage = doc.Descendants("class")
                 .Select(cls => new CoverletModel()
                 {
-                    FileName = cls.Attribute("filename")?.Value ?? "Unknown",
+                    ClassName = cls.Attribute("filename")?.Value ?? "Unknown",
                     Coverage = double.TryParse(cls.Attribute("line-rate")?.Value, out var rate) ? rate : 0.0
                 }).ToList();
 

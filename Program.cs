@@ -1,6 +1,8 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.Extensions.Configuration;
 using System;
 using TestGenerator.Commands;
+using TestGenerator.Coverlet;
 using TestGenerator.Models;
 using TestGenerator.Projectanalyzer;
 using TestGenerator.ProjectScanner;
@@ -54,9 +56,18 @@ internal class Program
             Console.WriteLine($"🔍 Scanning project at: {path}");
             
             var res = FileScanner.GetCSharpFiles(path);
-            Console.WriteLine($"Found {res.Count} C# files in the project.");
-            var ret2 = CompilationLoader.LoadProject(res);
+
+            CoverletManager.CreateCoverageReport(Path.Combine(path, config["MyProjectName"]));
+            var classesWithCoverage = CoverletManager.GetCoveragePerClass(Path.Combine(path, config["MyProjectName"]));
+            if(classesWithCoverage.Count == 0)
+            {
+                //break
+            }
+            ShowCoverletModels(classesWithCoverage, config);
+
+            var ret2 = CompilationLoader.LoadProject(classesWithCoverage.Select(cwc => cwc.ClassName).ToList());
             Console.WriteLine($"Compilation loaded with {ret2.SyntaxTrees.Count()} syntax trees.");
+
             var res3 = RoslynParser.GetPublicMethods(ret2);
             Console.WriteLine($"Found {res3.Count} public methods in the project.");
             foreach (var method in res3)
@@ -138,6 +149,18 @@ internal class Program
             return args[index + 1];
         }
         return null;
+    }
+
+    private static void ShowCoverletModels(List<CoverletModel> classesWithCoverage, IConfigurationRoot config)
+    {
+        Console.WriteLine($"Found {classesWithCoverage.Count} C# files in the project.");
+
+        foreach (var classWithCoverage in classesWithCoverage)
+        {
+            Console.ForegroundColor = (classWithCoverage.Coverage * 100 > int.Parse(config["CoveregeThreashHold"])) ? ConsoleColor.Green : ConsoleColor.Green;
+            Console.WriteLine($"Class: {classWithCoverage.ClassName}, Coverage: {classWithCoverage.Coverage * 100}%");
+        }
+        Console.ForegroundColor = ConsoleColor.White;
     }
 
     static void ShowHelp()
