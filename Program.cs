@@ -15,7 +15,7 @@ internal class Program
 
     static async Task Main(string[] args)
     {
-        
+      
 
 
         var projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..\\..\\..\\"));
@@ -42,6 +42,9 @@ internal class Program
             defaultPath = path ?? string.Empty;
         }
 
+        apiKey = config["ApiKey"];
+        defaultPath = config["DefaultPath"];
+
         if (args.Contains("--scan"))
         {
             Console.WriteLine($"🔍 Scanning project at: {defaultPath}");
@@ -52,19 +55,15 @@ internal class Program
             var SyntaxTrees = await CompilationLoader.LoadProjectAsync(RawStringFiles);
             Console.WriteLine($"Compilation loaded with {SyntaxTrees.SyntaxTrees.Count()} syntax trees.");
 
-            var PublicMethods = await RoslynParser.GetPublicMethodsAsync(SyntaxTrees);
-            Console.WriteLine($"Found {PublicMethods.Count} public methods in the project.");
-            foreach (var method in PublicMethods)
-            {
-                Console.WriteLine($"Method: {method.Name}, Class: {method.ContainingClass}, Namespace: {method.Namespace}, body: {method.Body}");
-            }
+            var publicclasses = await RoslynParser.GetClassModelsAsync(SyntaxTrees);
+            Console.WriteLine($"Found {publicclasses.Count} public methods in the project.");
 
             Console.WriteLine("Project scan completed successfully.");
 
             var code = new AiTestGenerator(apiKey);
 
             // Start generating unit tests async
-            var generateTestsTask = code.GenerateUnitTestsAsync(PublicMethods);
+            var generateTestsTask = code.GenerateUnitTestsAsync(publicclasses);
 
             // Run spinner concurrently while waiting for the generation to finish
             await Task.WhenAll(generateTestsTask, Animations.ShowSpinnerAsync("Generating tests...", generateTestsTask));
