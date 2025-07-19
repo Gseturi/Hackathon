@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace TestGenerator.Commands
 {
-    internal static class Commands
+    public static class Commands
     {
         public static void RunCommand(string fileName, string arguments, string? workingDirectory = null)
         {

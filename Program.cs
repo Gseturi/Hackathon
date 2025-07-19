@@ -122,7 +122,6 @@ internal class Program
         Console.WriteLine("  --help, -h, /?              Show this help message.");
         Console.WriteLine("  --scan <path>               Scan project at specified path for classes/methods.");
         Console.WriteLine("  --generate-tests <path>     Generate unit tests for the specified project.");
-        Console.WriteLine("  --language <lang>           Specify language (currently only 'csharp' is supported).");
         Console.WriteLine("  --output <path>             Set output directory for generated tests.");
         Console.WriteLine();
         Console.WriteLine("Example:");
