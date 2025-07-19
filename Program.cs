@@ -1,4 +1,7 @@
-﻿using TestGenerator.Commands;
+﻿using Microsoft.Extensions.Configuration;
+using System;
+using TestGenerator.Commands;
+using TestGenerator.Models;
 using TestGenerator.Projectanalyzer;
 using TestGenerator.ProjectScanner;
 
@@ -7,10 +10,36 @@ internal class Program
     static async Task Main(string[] args)
     {
 
+        var projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..\\..\\..\\"));
+        var config = new ConfigurationBuilder()
+           .SetBasePath(projectRoot) 
+           .AddJsonFile("Settings.json", optional: false, reloadOnChange: true)
+           .Build();
+
+        if (config["ApiKey"].ToString() == string.Empty || config["ApiKey"].ToString() is null)
+        {
+            Console.WriteLine("Input Api Key");
+            var key = Console.ReadLine();
+            Console.WriteLine(key);
+            config["ApiKey"] = key;
+        }
+
+        if (config["DefaultPath"].ToString() == string.Empty)
+        {
+            Console.WriteLine("Input DefaultProjectPath");
+            var path = Console.ReadLine();
+            Console.WriteLine(path);
+            config["DefaultPath"] = path;
+        }
+
+
+
+
         if (args.Length == 0 || args.Contains("--help") || args.Contains("-h") || args.Contains("/?"))
         {
             ShowHelp();
             return;
+
         }
 
         if (args.Contains("--scan"))
@@ -36,7 +65,7 @@ internal class Program
             }
             //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
             Console.WriteLine("Project scan completed successfully.");
-            var code = new AiTestGenerator("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");
+            var code = new AiTestGenerator("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");
             var res4 = await code.GenerateUnitTestAsync(res3[0]);
 
             Console.WriteLine("Do you have a Xunit project (Y/N)");
