@@ -1,4 +1,5 @@
-﻿using System.Net.Http;
+﻿using Microsoft.Graph.Models.Security;
+using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -16,18 +17,31 @@ public class AiTestGenerator
         _apiKey = apiKey;
     }
 
-    public async Task<string> GenerateUnitTestAsync(MethodModel method)
+    public async Task<Dictionary<string, string>> GenerateUnitTestsAsync(List<MethodModel> methods)
+    {
+        var tasks = methods.Select(async method =>
+        {
+            var testCode = await GenerateUnitTestForMethodAsync(method);
+            return new KeyValuePair<string, string>(method.Name, testCode);
+        });
+
+        var results = await Task.WhenAll(tasks);
+        return results.ToDictionary(pair => pair.Key, pair => pair.Value);
+    }
+
+
+    private async Task<string> GenerateUnitTestForMethodAsync(MethodModel method)
     {
         string prompt = PromptBuilder.BuildPrompt(method);
 
         var requestBody = new
         {
-            model = "gpt-4",  // or "gpt-3.5-turbo"
+            model = "gpt-4",
             messages = new[]
             {
-                new { role = "system", content = "You are a .NET unit test generator." },
-                new { role = "user", content = prompt }
-            }
+            new { role = "system", content = "You are a .NET unit test generator." },
+            new { role = "user", content = prompt }
+        }
         };
 
         var requestJson = JsonSerializer.Serialize(requestBody);
@@ -47,5 +61,6 @@ public class AiTestGenerator
                   .GetProperty("content")
                   .GetString();
     }
+
 }
 

@@ -10,40 +10,44 @@ namespace TestGenerator.Projectanalyzer
 {
     internal static class RoslynParser
     {
-        public static List<MethodModel> GetPublicMethods(Compilation compilation)
+        public static async Task<List<MethodModel>> GetPublicMethodsAsync(Compilation compilation)
         {
             var methods = new List<MethodModel>();
+            var lockObj = new object();
 
-            foreach (var syntaxTree in compilation.SyntaxTrees)
+            var tasks = compilation.SyntaxTrees.Select(async syntaxTree =>
             {
                 var semanticModel = compilation.GetSemanticModel(syntaxTree);
-                var root = syntaxTree.GetRoot();
+                var root = await syntaxTree.GetRootAsync();
                 var methodDeclarations = root.DescendantNodes().OfType<MethodDeclarationSyntax>();
 
                 foreach (var method in methodDeclarations)
                 {
                     var symbol = semanticModel.GetDeclaredSymbol(method);
-
                     if (symbol == null || symbol.DeclaredAccessibility != Accessibility.Public)
                         continue;
 
-                    var containingClass = symbol.ContainingType?.ToDisplayString() ?? string.Empty;
-                    var containingNamespace = symbol.ContainingNamespace?.ToDisplayString() ?? string.Empty;
-
-                    methods.Add(new MethodModel
+                    var methodModel = new MethodModel
                     {
                         Name = symbol.Name,
                         Parameters = string.Join(", ", symbol.Parameters.Select(p => $"{p.Type.ToDisplayString()} {p.Name}")),
                         Body = method.Body?.ToString() ?? method.ExpressionBody?.ToString() ?? string.Empty,
                         ReturnType = symbol.ReturnType.ToDisplayString(),
-                        ContainingClass = containingClass,
-                        Namespace = containingNamespace,
+                        ContainingClass = symbol.ContainingType?.ToDisplayString() ?? string.Empty,
+                        Namespace = symbol.ContainingNamespace?.ToDisplayString() ?? string.Empty,
                         IsAsync = symbol.IsAsync
-                    });
-                }
-            }
+                    };
 
+                    lock (lockObj)
+                    {
+                        methods.Add(methodModel);
+                    }
+                }
+            });
+
+            await Task.WhenAll(tasks);
             return methods;
         }
+
     }
 }

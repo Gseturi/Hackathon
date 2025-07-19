@@ -1,5 +1,8 @@
 ﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Graph.Models;
+using Microsoft.IdentityModel.Tokens;
 using System;
+using TestGenerator.Animations;
 using TestGenerator.Commands;
 using TestGenerator.Models;
 using TestGenerator.Projectanalyzer;
@@ -7,8 +10,13 @@ using TestGenerator.ProjectScanner;
 
 internal class Program
 {
+    private static string apiKey = string.Empty;
+    private static string defaultPath = string.Empty;
+
     static async Task Main(string[] args)
     {
+        
+
 
         var projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..\\..\\..\\"));
         var config = new ConfigurationBuilder()
@@ -22,6 +30,7 @@ internal class Program
             var key = Console.ReadLine();
             Console.WriteLine(key);
             config["ApiKey"] = key;
+            apiKey = key ?? string.Empty;
         }
 
         if (config["DefaultPath"].ToString() == string.Empty)
@@ -30,78 +39,94 @@ internal class Program
             var path = Console.ReadLine();
             Console.WriteLine(path);
             config["DefaultPath"] = path;
-        }
-
-
-
-
-        if (args.Length == 0 || args.Contains("--help") || args.Contains("-h") || args.Contains("/?"))
-        {
-            ShowHelp();
-            return;
-
+            defaultPath = path ?? string.Empty;
         }
 
         if (args.Contains("--scan"))
         {
-            string path = GetOptionValue(args, "--scan");
-            if (path == null)
-            {
-                Console.WriteLine("Error: Please provide a path after --scan.");
-                return;
-            }
+            Console.WriteLine($"🔍 Scanning project at: {defaultPath}");
 
-            Console.WriteLine($"🔍 Scanning project at: {path}");
-            
-            var res = FileScanner.GetCSharpFiles(path);
-            Console.WriteLine($"Found {res.Count} C# files in the project.");
-            var ret2 = CompilationLoader.LoadProject(res);
-            Console.WriteLine($"Compilation loaded with {ret2.SyntaxTrees.Count()} syntax trees.");
-            var res3 = RoslynParser.GetPublicMethods(ret2);
-            Console.WriteLine($"Found {res3.Count} public methods in the project.");
-            foreach (var method in res3)
+            var RawStringFiles = await FileScanner.GetCSharpFilesAsync(defaultPath);
+            Console.WriteLine($"Found {RawStringFiles.Count} C# files in the project.");
+
+            var SyntaxTrees = await CompilationLoader.LoadProjectAsync(RawStringFiles);
+            Console.WriteLine($"Compilation loaded with {SyntaxTrees.SyntaxTrees.Count()} syntax trees.");
+
+            var PublicMethods = await RoslynParser.GetPublicMethodsAsync(SyntaxTrees);
+            Console.WriteLine($"Found {PublicMethods.Count} public methods in the project.");
+            foreach (var method in PublicMethods)
             {
                 Console.WriteLine($"Method: {method.Name}, Class: {method.ContainingClass}, Namespace: {method.Namespace}, body: {method.Body}");
             }
-            //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
+
             Console.WriteLine("Project scan completed successfully.");
-            var code = new AiTestGenerator("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");
-            var res4 = await code.GenerateUnitTestAsync(res3[0]);
+
+            var code = new AiTestGenerator(apiKey);
+
+            // Start generating unit tests async
+            var generateTestsTask = code.GenerateUnitTestsAsync(PublicMethods);
+
+            // Run spinner concurrently while waiting for the generation to finish
+            await Task.WhenAll(generateTestsTask, Animations.ShowSpinnerAsync("Generating tests...", generateTestsTask));
+
+            // Get the generated tests dictionary after completion
+            var NameandTest = generateTestsTask.Result;
 
             Console.WriteLine("Do you have a Xunit project (Y/N)");
             string res5 = Console.ReadLine().ToString().ToLower();
-            if(res5 == "y")
+            if (res5 == "y")
             {
-                Console.WriteLine("Please provide the path to the Xunit project:");
-                string xunitPath = Console.ReadLine();
-                Console.WriteLine($"Xunit project path: {xunitPath}");
+                string fullPath = config["projectName"];
+
+                // Write each generated test to its own file
+                foreach (var kvp in NameandTest)
+                {
+                    string methodName = kvp.Key;
+                    string testCode = kvp.Value;
+
+                    // Clean method name to valid file name
+                    string safeFileName = string.Concat(methodName.Split(Path.GetInvalidFileNameChars()));
+
+                    string methodTestFile = Path.Combine(fullPath, $"{safeFileName}Tests.cs");
+                    File.WriteAllText(methodTestFile, testCode);
+
+                    Console.WriteLine($"Test for method {methodName} written to: {methodTestFile}");
+                }
             }
             else
             {
                 Console.WriteLine("Please provide the path to where to create the project");
                 string projectPath = Console.ReadLine();
                 Console.WriteLine($"Creating Xunit project at: {projectPath}");
-                Console.WriteLine("project name");
+                Console.WriteLine("Project name:");
                 string ProjectName = Console.ReadLine();
-
 
                 Commands.RunCommand("dotnet", $"new xunit -n {ProjectName}", projectPath);
                 Console.WriteLine($"Xunit project created at: {projectPath}");
 
-                // Ensure the path ends with a slash
+                // Ensure the directory exists
                 string fullPath = Path.Combine(projectPath, ProjectName);
-                Directory.CreateDirectory(fullPath); // Just in case
+                Directory.CreateDirectory(fullPath);
 
-                string testFileName = "GeneratedTests.cs";
-                string fullFilePath = Path.Combine(fullPath, testFileName);
+                // Write each generated test to its own file
+                foreach (var kvp in NameandTest)
+                {
+                    string methodName = kvp.Key;
+                    string testCode = kvp.Value;
 
-                File.WriteAllText(fullFilePath, res4);
-                Console.WriteLine($"Test written to: {fullFilePath}");
+                    // Clean method name to valid file name
+                    string safeFileName = string.Concat(methodName.Split(Path.GetInvalidFileNameChars()));
 
+                    string methodTestFile = Path.Combine(fullPath, $"{safeFileName}Tests.cs");
+                    File.WriteAllText(methodTestFile, testCode);
+
+                    Console.WriteLine($"Test for method {methodName} written to: {methodTestFile}");
+                }
             }
 
             return;
         }
+              
 
         if (args.Contains("--generate-tests"))
         {

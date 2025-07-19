@@ -8,10 +8,10 @@ namespace TestGenerator.ProjectScanner
 {
     static class FileScanner
     {
-        public static List<string> GetCSharpFiles(string projectPath)
+        public static async Task<List<string>> GetCSharpFilesAsync(string projectPath)
         {
-
-            return Directory.GetFiles(projectPath, "*.cs", SearchOption.AllDirectories).ToList();
+            return await Task.Run(() =>
+                Directory.GetFiles(projectPath, "*.cs", SearchOption.AllDirectories).ToList());
         }
     }
 }
