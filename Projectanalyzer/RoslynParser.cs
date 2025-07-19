@@ -5,15 +5,15 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Collections.Generic;
 using System.Linq;
 using TestGenerator.Models;
+using System.Collections.Concurrent;
 
 namespace TestGenerator.Projectanalyzer
 {
     internal static class RoslynParser
     {
-        public static async Task<List<MethodModel>> GetPublicMethodsAsync(Compilation compilation)
+        public static async Task<List<ClassModel>> GetClassModelsAsync(Compilation compilation)
         {
-            var methods = new List<MethodModel>();
-            var lockObj = new object();
+            var classMap = new ConcurrentDictionary<string, ClassModel>();
 
             var tasks = compilation.SyntaxTrees.Select(async syntaxTree =>
             {
@@ -24,8 +24,11 @@ namespace TestGenerator.Projectanalyzer
                 foreach (var method in methodDeclarations)
                 {
                     var symbol = semanticModel.GetDeclaredSymbol(method);
-                    if (symbol == null || symbol.DeclaredAccessibility != Accessibility.Public)
+                    if (symbol is null || symbol.DeclaredAccessibility != Accessibility.Public)
                         continue;
+
+                    var className = symbol.ContainingType?.ToDisplayString();
+                    if (className is null) continue;
 
                     var methodModel = new MethodModel
                     {
@@ -33,21 +36,25 @@ namespace TestGenerator.Projectanalyzer
                         Parameters = string.Join(", ", symbol.Parameters.Select(p => $"{p.Type.ToDisplayString()} {p.Name}")),
                         Body = method.Body?.ToString() ?? method.ExpressionBody?.ToString() ?? string.Empty,
                         ReturnType = symbol.ReturnType.ToDisplayString(),
-                        ContainingClass = symbol.ContainingType?.ToDisplayString() ?? string.Empty,
+                        ContainingClass = className,
                         Namespace = symbol.ContainingNamespace?.ToDisplayString() ?? string.Empty,
                         IsAsync = symbol.IsAsync
                     };
 
-                    lock (lockObj)
+                    var classModel = classMap.GetOrAdd(className, _ => new ClassModel
                     {
-                        methods.Add(methodModel);
-                    }
+                        Name = symbol.ContainingType.Name,
+                        Namespace = symbol.ContainingNamespace.ToDisplayString()
+                    });
+
+                    classModel.Methods.Add(methodModel);
                 }
             });
 
             await Task.WhenAll(tasks);
-            return methods;
+            return classMap.Values.ToList();
         }
+
 
     }
 }

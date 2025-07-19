@@ -17,18 +17,47 @@ public class AiTestGenerator
         _apiKey = apiKey;
     }
 
-    public async Task<Dictionary<string, string>> GenerateUnitTestsAsync(List<MethodModel> methods)
+    public async Task<Dictionary<string, string>> GenerateUnitTestsAsync(List<ClassModel> classes)
     {
-        var tasks = methods.Select(async method =>
+        var tasks = classes.Select(async classModel =>
         {
-            var testCode = await GenerateUnitTestForMethodAsync(method);
-            return new KeyValuePair<string, string>(method.Name, testCode);
+            var testCode = await GenerateUnitTestForClassAsync(classModel);
+            string key = $"{classModel.Namespace}.{classModel.Name}";
+            return new KeyValuePair<string, string>(key, testCode);
         });
 
         var results = await Task.WhenAll(tasks);
         return results.ToDictionary(pair => pair.Key, pair => pair.Value);
     }
 
+    private async Task<string> GenerateUnitTestForClassAsync(ClassModel classModel)
+    {
+        string promp = PromptBuilder.BuildClassPromt(classModel);
+
+        var requeustBody = new
+        {
+            model = "gpt-4",
+            messages = new[]
+            {
+                new { role = "system", content = "You are a .NET unit test generator." },
+                new { role = "user", content = promp }
+            }
+        };
+
+        var requestJson = JsonSerializer.Serialize(requeustBody);
+        var content = new StringContent(requestJson, Encoding.UTF8, "application/json");
+        _httpClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", _apiKey);
+        var response = await _httpClient.PostAsync("https://api.openai.com/v1/chat/completions", content);
+        var responseBody = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(responseBody);
+        return doc.RootElement
+                  .GetProperty("choices")[0]
+                  .GetProperty("message")
+                  .GetProperty("content")
+                  .GetString() ?? string.Empty;
+    }
 
     private async Task<string> GenerateUnitTestForMethodAsync(MethodModel method)
     {
@@ -39,9 +68,9 @@ public class AiTestGenerator
             model = "gpt-4",
             messages = new[]
             {
-            new { role = "system", content = "You are a .NET unit test generator." },
-            new { role = "user", content = prompt }
-        }
+                new { role = "system", content = "You are a .NET unit test generator." },
+                new { role = "user", content = prompt }
+            }
         };
 
         var requestJson = JsonSerializer.Serialize(requestBody);
@@ -51,16 +80,15 @@ public class AiTestGenerator
             new AuthenticationHeaderValue("Bearer", _apiKey);
 
         var response = await _httpClient.PostAsync("https://api.openai.com/v1/chat/completions", content);
-
         var responseBody = await response.Content.ReadAsStringAsync();
-        using var doc = JsonDocument.Parse(responseBody);
 
+        using var doc = JsonDocument.Parse(responseBody);
         return doc.RootElement
                   .GetProperty("choices")[0]
                   .GetProperty("message")
                   .GetProperty("content")
                   .GetString();
     }
-
 }
+
 
