@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Xml.Linq;
 using TestGenerator.Commands;
+using TestGenerator.ProjectScanner;
 
 namespace TestGenerator.Coverlet
 {
@@ -18,14 +19,15 @@ namespace TestGenerator.Coverlet
             await Task.WhenAll(temp, TestGenerator.Animations.Animations.ShowSpinnerAsync("generating coverlet..", temp));
         }
 
-        public static List<CoverletModel> GetCoveragePerClass(string projectTestsPath)
+        public static async Task<List<CoverletModel>> GetCoveragePerClass(string projectTestsPath)
         {
             // Find the latest TestResults folder with coverage
+            List<string> files = await FileScanner.GetCSharpFilesAsync(Path.GetDirectoryName(projectTestsPath));
             var resultsDir = Path.Combine(projectTestsPath, "TestResults");
             if (!Directory.Exists(resultsDir))
             {
                 Console.WriteLine("TestResults folder not found.");
-                return new List<CoverletModel>();
+                return files.Select(file => new CoverletModel { ClassName = file, Coverage = 0 }).ToList();
             }
 
             var latestCoverageFile = Directory.GetFiles(resultsDir, "coverage.cobertura.xml", SearchOption.AllDirectories)
@@ -35,20 +37,33 @@ namespace TestGenerator.Coverlet
             if (latestCoverageFile == null)
             {
                 Console.WriteLine("Coverage report not found.");
-                return new List<CoverletModel>();
+                return files.Select(file => new CoverletModel { ClassName = file, Coverage = 0 }).ToList();
             }
 
             // Parse the XML and extract coverage per class
             var doc = XDocument.Load(latestCoverageFile);
 
-            var classCoverage = doc.Descendants("class")
-                .Select(cls => new CoverletModel()
+            // 1. Parse existing coverage data from XML
+            var classCoverageDict = doc.Descendants("class")
+                .Select(cls => new CoverletModel
                 {
                     ClassName = cls.Attribute("filename")?.Value ?? "Unknown",
                     Coverage = double.TryParse(cls.Attribute("line-rate")?.Value, out var rate) ? rate : 0.0
-                }).ToList();
+                })
+                .ToDictionary(c => c.ClassName, c => c);
 
-            return classCoverage;
+            // 2. Ensure all files are included (even if not in the coverage report)
+            var allCoverages = files
+                .Select(file => classCoverageDict.TryGetValue(file, out var model)
+                    ? model
+                    : new CoverletModel
+                    {
+                        ClassName = file,
+                        Coverage = 0.0
+                    })
+                .ToList();
+
+            return allCoverages;
         }
     }
 }

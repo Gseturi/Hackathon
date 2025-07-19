@@ -11,7 +11,9 @@ namespace TestGenerator.ProjectScanner
         public static async Task<List<string>> GetCSharpFilesAsync(string projectPath)
         {
             return await Task.Run(() =>
-                Directory.GetFiles(projectPath, "*.cs", SearchOption.AllDirectories).ToList());
+                Directory.GetFiles(projectPath, "*.cs", SearchOption.AllDirectories)
+                         .Where(file => !Path.GetFileName(file).ToLower().Contains("test"))
+                         .ToList());
         }
     }
 }

@@ -17,10 +17,21 @@ namespace TestGenerator.Animations
             while (!waitForTask.IsCompleted)
             {
                 Console.Write(spinner[i % spinner.Length]);
-                await Task.Delay(100); // non-blocking delay
-                Console.SetCursorPosition(Console.CursorLeft - 1, Console.CursorTop);
+                await Task.Delay(100);
+
+                // Safely move cursor back
+                if (Console.IsOutputRedirected || Console.CursorLeft <= 0)
+                {
+                    Console.Write("\b"); // just use backspace char
+                }
+                else
+                {
+                    Console.SetCursorPosition(Console.CursorLeft - 1, Console.CursorTop);
+                }
+
                 i++;
             }
+
             Console.WriteLine(" Done!");
         }
 

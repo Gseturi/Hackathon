@@ -2,6 +2,11 @@
 using Microsoft.Graph.Models;
 using Microsoft.IdentityModel.Tokens;
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 using TestGenerator.Animations;
 using TestGenerator.Commands;
 using TestGenerator.Coverlet;
@@ -17,101 +22,151 @@ internal class Program
 
     static async Task Main(string[] args)
     {
-        var projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..\\..\\..\\"));
+        var projectRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", ".."));
         var config = new ConfigurationBuilder()
-           .SetBasePath(projectRoot) 
-           .AddJsonFile("Settings.json", optional: false, reloadOnChange: true)
-           .Build();
+            .SetBasePath(projectRoot)
+            .AddJsonFile("Settings.json", optional: false, reloadOnChange: true)
+            .Build();
 
-        if (config["ApiKey"].ToString() == string.Empty || config["ApiKey"].ToString() is null)
+        // Prompt for missing config values
+        if (string.IsNullOrEmpty(config["ApiKey"]))
         {
-            Console.WriteLine("Input Api Key");
+            Console.Write("Input Api Key: ");
             var key = Console.ReadLine();
-            Console.WriteLine(key);
-            config["ApiKey"] = key;
             apiKey = key ?? string.Empty;
         }
-
-        if (config["DefaultPath"].ToString() == string.Empty)
+        else
         {
-            Console.WriteLine("Input DefaultProjectPath");
-            var path = Console.ReadLine();
-            Console.WriteLine(path);
-            config["DefaultPath"] = path;
-            defaultPath = path ?? string.Empty;
+            apiKey = config["ApiKey"];
         }
 
-        if (config["projectName"].ToString() == string.Empty)
+        if (string.IsNullOrEmpty(config["DefaultPath"]))
         {
-            Console.WriteLine("Input DefaultProjectName");
+            Console.Write("Input DefaultProjectPath: ");
+            var path = Console.ReadLine();
+            defaultPath = path ?? string.Empty;
+        }
+        else
+        {
+            defaultPath = config["DefaultPath"];
+        }
+
+        if (string.IsNullOrEmpty(config["projectName"]))
+        {
+            Console.Write("Input DefaultProjectName: ");
             var projectName = Console.ReadLine();
-            Console.WriteLine(projectName);
             config["projectName"] = projectName;
         }
 
-        apiKey = config["ApiKey"];
-        defaultPath = config["DefaultPath"];
-        defaultTestProjectPath = Path.Combine(defaultPath, config["projectName"]);
-
+        // Use Path.Combine for correct path separators
+        var test = Directory.GetParent(defaultPath).ToString().Replace('\\', '/') + "/" + config["projectName"];
+        var parent = Directory.GetParent(defaultPath).ToString().Replace('\\', '/');
+        var testProjectPath = parent+ $"/{config["projectName"]}.Tests";
+        //C:\Users\mylaptop.ge\source\repos\DI\
         if (args.Contains("--scan"))
         {
             Console.WriteLine($"🔍 Scanning project at: {defaultPath}");
+            var testProjectCsproj = $"{config["projectName"]}.Tests.csproj";
+            if (!Directory.Exists(testProjectPath))
+            {
 
-            await CoverletManager.CreateCoverageReport(defaultTestProjectPath);
-            var coverletResults = CoverletManager.GetCoveragePerClass(defaultPath);
+                // Run 'dotnet new xunit -n {projectName}' inside defaultPath folder
+                // In Program.cs, replace the RunCommandsAsync section with this:
 
-            //var RawStringFiles = await FileScanner.GetCSharpFilesAsync(defaultPath);
+                // Create the xUnit test project in a subfolder
+                await Commands.RunCommand("dotnet", $"new xunit -n {config["projectName"]}.Tests -o {config["projectName"]}.Tests", parent);
+
+                // Add the test project to the solution
+                await Commands.RunCommand("dotnet", $"sln add {config["projectName"]}.Tests/{testProjectCsproj}", parent);
+
+                // Reference the main project from the test project
+                await Commands.RunCommand("dotnet",
+                    $"add {config["projectName"]}.Tests/{testProjectCsproj} reference ../{config["projectName"]}/{config["projectName"]}.csproj",
+                    parent);
+
+                // Add NuGet packages one by one with error handling
+                var packages = new[]
+                {
+    "coverlet.collector",
+    "Moq",
+    "Microsoft.Extensions.Logging",
+    "Microsoft.Extensions.Logging.Abstractions",
+    "Microsoft.NET.Test.Sdk",
+    "xunit.runner.visualstudio",
+    "FluentAssertions",
+    "AutoFixture",
+    "AutoFixture.AutoMoq"
+};
+
+                foreach (var package in packages)
+                {
+                    await Commands.RunCommand("dotnet",
+                        $"add {config["projectName"]}.Tests/{testProjectCsproj} package {package}",
+                        parent);
+                }
+
+                // Restore packages
+                await Commands.RunCommand("dotnet", $"restore {config["projectName"]}.Tests/{testProjectCsproj}", parent);
+
+                // Build to verify
+                await Commands.RunCommand("dotnet", $"build {config["projectName"]}.Tests/{testProjectCsproj}", parent);
+
+            }
+
+            await CoverletManager.CreateCoverageReport(testProjectPath);
+            var coverletResults = await CoverletManager.GetCoveragePerClass(testProjectPath);
+
             Console.WriteLine($"Found {coverletResults.Count} C# files in the project.");
 
-            var SyntaxTrees = await CompilationLoader.LoadProjectAsync(coverletResults.Where(cr => cr.Coverage > int.Parse(config["CoveregeThreashHold"])).Select(cr => cr.ClassName).ToList());
-            var publicClasses = await RoslynParser.GetClassModelsAsync(SyntaxTrees);
+            var syntaxTrees = await CompilationLoader.LoadProjectAsync(
+                coverletResults
+                    .Where(cr => cr.Coverage < int.Parse(config["CoveregeThreashHold"]))
+                    .Select(cr => cr.ClassName)
+                    .ToList());
 
+            var publicClasses = await RoslynParser.GetClassModelsAsync(syntaxTrees);
+
+            // Display coverage results with color coding
             foreach (var coverletResult in coverletResults)
             {
-                Console.ForegroundColor = (coverletResult.Coverage * 100 > int.Parse(config["CoveregeThreashHold"])) ? ConsoleColor.Green : ConsoleColor.Red;
+                bool isAboveThreshold = coverletResult.Coverage * 100 > int.Parse(config["CoveregeThreashHold"]);
+                Console.ForegroundColor = isAboveThreshold ? ConsoleColor.Green : ConsoleColor.Red;
                 Console.WriteLine($"Class: {coverletResult.ClassName}, Coverage: {coverletResult.Coverage * 100} %");
             }
-            Console.ForegroundColor = ConsoleColor.White;
+            Console.ResetColor();
 
             Console.WriteLine("Project scan completed successfully.");
-            var code = new AiTestGenerator(apiKey);
 
-            // Start generating unit tests async
-            var generateTestsTask = code.GenerateUnitTestsAsync(publicClasses);
+            var aiTestGenerator = new AiTestGenerator(apiKey);
 
-            // Run spinner concurrently while waiting for the generation to finish
-            await Task.WhenAll(generateTestsTask, Animations.ShowSpinnerAsync("regenerating tests for classes with low coverage....", generateTestsTask));
+            // Generate tests async and show spinner concurrently
+            var generateTestsTask = aiTestGenerator.GenerateUnitTestsAsync(publicClasses);
+            await Task.WhenAll(
+                generateTestsTask,
+                Animations.ShowSpinnerAsync("Regenerating tests for classes with low coverage...", generateTestsTask));
 
-            // Get the generated tests dictionary after completion
-            var NameandTest = generateTestsTask.Result;
-
-            if (!File.Exists(defaultTestProjectPath))
-            {
-                Commands.RunCommand("dotnet", $"new xunit -n {defaultPath}", config["projectName"]);
-            }
-
-            // Write each generated test to its own file
-            foreach (var kvp in NameandTest)
+            var generatedTests = await generateTestsTask;
+            int count = 0;
+            // Write generated tests to files
+            foreach (var kvp in generatedTests)
             {
                 string className = kvp.Key;
                 string testCode = kvp.Value;
-
-                // Clean method name to valid file name
                 string safeFileName = string.Concat(className.Split(Path.GetInvalidFileNameChars()));
-
-                string TestFile = Path.Combine(defaultTestProjectPath, $"{safeFileName}Tests.cs");
-                File.WriteAllText(TestFile, testCode);
-
-                Console.WriteLine($"Test for class {className} written to: {TestFile}");
+                string testFilePath = testProjectPath + "/" + "temp"+count.ToString()+".cs";
+                count++;
+                await File.WriteAllTextAsync(testFilePath, testCode);
+                Console.WriteLine($"Test for class {className} written to: {testFilePath}");
             }
+
+
 
             return;
         }
-              
 
         if (args.Contains("--generate-tests"))
         {
-            string path = GetOptionValue(args, "--generate-tests");
+            string? path = GetOptionValue(args, "--generate-tests");
             if (path == null)
             {
                 Console.WriteLine("Error: Please provide a path after --generate-tests.");
@@ -124,21 +179,20 @@ internal class Program
 
         if (args.Contains("--language"))
         {
-            string lang = GetOptionValue(args, "--language");
+            string? lang = GetOptionValue(args, "--language");
             Console.WriteLine($"🌐 Selected language: {lang}");
         }
 
         if (args.Contains("--output"))
         {
-            string output = GetOptionValue(args, "--output");
+            string? output = GetOptionValue(args, "--output");
             Console.WriteLine($"📁 Output directory for tests: {output}");
         }
-
     }
 
     static string? GetOptionValue(string[] args, string key)
     {
-        var index = Array.IndexOf(args, key);
+        int index = Array.IndexOf(args, key);
         if (index >= 0 && index < args.Length - 1)
         {
             return args[index + 1];
@@ -163,5 +217,4 @@ internal class Program
         Console.WriteLine("Example:");
         Console.WriteLine("  dotnet run -- --generate-tests ./MyProject --output ./MyProject.Tests");
     }
-
 }

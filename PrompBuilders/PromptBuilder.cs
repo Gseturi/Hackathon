@@ -65,7 +65,7 @@ Namespace: {classModel.Namespace}
 Methods:
 {methodsBuilder}
 
-Return only the full C# test class code using xUnit and Moq. No explanations or output other than the C# code. everything written goes into a .cs file so DONT WRITE ANYTHING OTHER THAN CODE!
+Return only the full C# test class code using xUnit and Moq. No explanations or output other than the C# code. response goes into a .cs file dont write anything other than code. if you want to add comments use //
 """;
         }
 
