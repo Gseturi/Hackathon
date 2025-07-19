@@ -9,7 +9,7 @@ namespace TestGenerator.Commands
 {
     public static class Commands
     {
-        public static void RunCommand(string fileName, string arguments, string? workingDirectory = null)
+        public static async Task RunCommand(string fileName, string arguments, string? workingDirectory = null)
         {
             var process = new Process
             {

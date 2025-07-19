@@ -6,13 +6,16 @@ namespace TestGenerator.Coverlet
 {
     public static class CoverletManager
     {
-        public static void CreateCoverageReport(string projectTestsPath)
+        public static async Task CreateCoverageReport(string projectTestsPath)
         {
-            TestGenerator.Commands.Commands.RunCommand(
+            
+            var temp = TestGenerator.Commands.Commands.RunCommand(
                 "dotnet",
                 @"test --collect:""XPlat Code Coverage""",
                 projectTestsPath
             );
+
+            await Task.WhenAll(temp, TestGenerator.Animations.Animations.ShowSpinnerAsync("generating coverlet..", temp));
         }
 
         public static List<CoverletModel> GetCoveragePerClass(string projectTestsPath)
