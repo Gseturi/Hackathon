@@ -10,10 +10,15 @@ namespace TestGenerator.ProjectScanner
 {
     public static class CompilationLoader
     {
-        public static Compilation LoadProject(List<string> files)
+        public static async Task<Compilation> LoadProjectAsync(List<string> files)
         {
-            var syntaxTrees = files.Select(file =>
-                CSharpSyntaxTree.ParseText(File.ReadAllText(file))).ToList();
+            var syntaxTreeTasks = files.Select(async file =>
+            {
+                var text = await File.ReadAllTextAsync(file);
+                return CSharpSyntaxTree.ParseText(text);
+            });
+
+            var syntaxTrees = await Task.WhenAll(syntaxTreeTasks);
 
             var compilation = CSharpCompilation.Create("Temp")
                 .AddReferences(MetadataReference.CreateFromFile(typeof(object).Assembly.Location))
@@ -22,4 +27,5 @@ namespace TestGenerator.ProjectScanner
             return compilation;
         }
     }
+
 }

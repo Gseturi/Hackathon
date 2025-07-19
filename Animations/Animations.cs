@@ -6,21 +6,22 @@ using System.Threading.Tasks;
 
 namespace TestGenerator.Animations
 {
-    internal class Animations
+    internal static class Animations
     {
-        public static void ShowSpinner(string message, Task whendone)
+        public static async Task ShowSpinnerAsync(string message, Task waitForTask)
         {
             var spinner = new[] { '|', '/', '-', '\\' };
             Console.Write(message + " ");
             int i = 0;
-            while (!whendone.IsCompleted)
+
+            while (!waitForTask.IsCompleted)
             {
                 Console.Write(spinner[i % spinner.Length]);
-                Thread.Sleep(100);
+                await Task.Delay(100); // non-blocking delay
                 Console.SetCursorPosition(Console.CursorLeft - 1, Console.CursorTop);
                 i++;
             }
-            Console.WriteLine("Done!");
+            Console.WriteLine(" Done!");
         }
 
     }
