@@ -175,16 +175,26 @@ internal class Program
                 Console.ForegroundColor = isAboveThreshold ? ConsoleColor.Green : ConsoleColor.Red;
                 Console.WriteLine($"Class: {coverletResult.ClassName}, Coverage: {coverletResult.Coverage * 100} %");
             }
+            Console.ResetColor();
             Console.WriteLine("final mutation result -------------------- ");
             Console.WriteLine();
+
             await StrykerManager.CreateMutationReport(testProjectPath);
-            var strykerResults = await StrykerManager.GetMutationPerClass(testProjectPath);
-            foreach (var strykerResult in strykerResults)
+            string htmlReportPath = StrykerManager.GetLatestStrykerHtmlReport(testProjectPath);
+
+/*            if (htmlReportPath != null)
             {
-                bool isAboveThreshold = strykerResult.MutationScore > int.Parse(config["CoveregeThreashHold"]);
-                Console.ForegroundColor = isAboveThreshold ? ConsoleColor.Green : ConsoleColor.Red;
-                Console.WriteLine($"Class: {strykerResult.ClassName}, Mutation Score: {strykerResult.MutationScore} %");
-            }
+                string htmlContent = StrykerManager.ExtractRelevantStrykerContent(htmlReportPath);
+                await Task.Delay(1000);
+                var listOfSuggestions = await aiTestGenerator.ReturnSuggestionsToImproveTestQuality(htmlContent);
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                foreach (var suggestion in listOfSuggestions)
+                {
+                    Console.WriteLine($"Suggestion: {suggestion.Suggestion}");
+                    Console.WriteLine($"Path: {suggestion.Path}");
+                }
+                Console.ResetColor();
+            }*/
             return;
         }
 

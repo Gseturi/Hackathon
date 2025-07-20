@@ -73,6 +73,49 @@ public class AiTestGenerator
                   .GetString() ?? string.Empty;
     }
 
+
+    public class SuggestionModel
+    {
+        public string Path { get; set; }
+        public string Suggestion { get; set; }
+    }
+
+    public async Task<List<SuggestionModel>> ReturnSuggestionsToImproveTestQuality(string htmlReport)
+    {
+        string prompt = PromptBuilder.BuildReport(htmlReport);
+
+        var requestBody = new
+        {
+            model = "gpt-4o",
+            messages = new[]
+            {
+            new { role = "system", content = "You are a .NET unit test generator." },
+            new { role = "user", content = prompt }
+        }
+        };
+
+        var requestJson = JsonSerializer.Serialize(requestBody);
+        var content = new StringContent(requestJson, Encoding.UTF8, "application/json");
+
+        _httpClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", _apiKey);
+
+        var response = await _httpClient.PostAsync("https://api.openai.com/v1/chat/completions", content);
+        var responseBody = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(responseBody);
+        var suggestionsJson = doc.RootElement
+            .GetProperty("choices")[0]
+            .GetProperty("message")
+            .GetProperty("content")
+            .GetString();
+
+        // Deserialize the string content into list of SuggestionModel
+        return JsonSerializer.Deserialize<List<SuggestionModel>>(suggestionsJson)
+               ?? new List<SuggestionModel>();
+    }
+
+
     private async Task<string> GenerateUnitTestForMethodAsync(MethodModel method)
     {
         string prompt = PromptBuilder.BuildPrompt(method);

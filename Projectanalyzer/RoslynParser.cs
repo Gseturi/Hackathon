@@ -1,11 +1,11 @@
 ﻿using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Collections.Generic;
 using System.Linq;
 using TestGenerator.Models;
 using System.Collections.Concurrent;
+using System.Threading.Tasks;
 
 namespace TestGenerator.Projectanalyzer
 {
@@ -19,6 +19,7 @@ namespace TestGenerator.Projectanalyzer
             {
                 var semanticModel = compilation.GetSemanticModel(syntaxTree);
                 var root = await syntaxTree.GetRootAsync();
+                var filePath = syntaxTree.FilePath; // Capture file path
 
                 var classDeclarations = root.DescendantNodes().OfType<ClassDeclarationSyntax>();
 
@@ -41,9 +42,12 @@ namespace TestGenerator.Projectanalyzer
                         BaseTypes = classDecl.BaseList?.Types
                                       .Select(bt => bt.Type.ToString())
                                       .ToList() ?? new List<string>(),
+                        FullClassBody = classDecl.ToFullString(), // Add this line
+                        FilePath = filePath, // Add this line
                         Fields = new List<string>(),
                         Properties = new List<string>(),
-                        Methods = new List<MethodModel>()
+                        Methods = new List<MethodModel>(),
+                        Dependencies = new List<ClassModel>()
                     });
 
                     // Add fields
@@ -84,6 +88,9 @@ namespace TestGenerator.Projectanalyzer
                             IsAsync = methodSymbol.IsAsync
                         });
                     }
+
+                    // Analyze dependencies
+                    AnalyzeDependencies(classDecl, semanticModel, classModel, classMap);
                 }
             });
 
@@ -91,7 +98,33 @@ namespace TestGenerator.Projectanalyzer
             return classMap.Values.ToList();
         }
 
+        private static void AnalyzeDependencies(
+            ClassDeclarationSyntax classDecl,
+            SemanticModel semanticModel,
+            ClassModel currentClass,
+            ConcurrentDictionary<string, ClassModel> classMap)
+        {
+            // Find all type references in the class
+            var typeReferences = classDecl.DescendantNodes()
+                .OfType<IdentifierNameSyntax>()
+                .Select(id => semanticModel.GetSymbolInfo(id).Symbol as INamedTypeSymbol)
+                .Where(s => s != null && !s.IsGenericType)
+                .Distinct(SymbolEqualityComparer.Default);
 
-
+            foreach (var typeSymbol in typeReferences)
+            {
+                if (typeSymbol.ContainingAssembly?.Name == currentClass.Namespace)
+                {
+                    var dependencyFullName = typeSymbol.ToDisplayString();
+                    if (classMap.TryGetValue(dependencyFullName, out var dependency))
+                    {
+                        if (!currentClass.Dependencies.Contains(dependency))
+                        {
+                            currentClass.Dependencies.Add(dependency);
+                        }
+                    }
+                }
+            }
+        }
     }
 }

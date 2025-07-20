@@ -1,4 +1,6 @@
-﻿using System.Diagnostics;
+﻿using HtmlAgilityPack;
+using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 using TestGenerator.ProjectScanner;
 
@@ -20,110 +22,6 @@ namespace TestGenerator.Stryker
             );
         }
 
-        public static async Task<List<StrykerModel>> GetMutationPerClass(string projectTestsPath)
-        {
-            // Get source files from the main project
-            List<string> files = await FileScanner.GetCSharpFilesAsync(Path.GetDirectoryName(projectTestsPath));
-
-            var outputDir = Path.Combine(projectTestsPath, "StrykerOutput");
-
-            if (!Directory.Exists(outputDir))
-            {
-                Console.WriteLine("StrykerOutput folder not found.");
-                return files.Select(file => new StrykerModel
-                {
-                    ClassName = file,
-                    MutationScore = 0,
-                    TotalMutations = 0,
-                    Killed = 0,
-                    Survived = 0
-                }).ToList();
-            }
-
-            var latestReportPath = Directory.GetDirectories(outputDir)
-                .OrderByDescending(d => Directory.GetLastWriteTime(d))
-                .Select(d => Path.Combine(d, "reports", "mutation-report.json"))
-                .FirstOrDefault(File.Exists);
-
-            if (latestReportPath == null)
-            {
-                Console.WriteLine("No mutation-report.json found.");
-                return files.Select(file => new StrykerModel
-                {
-                    ClassName = file,
-                    MutationScore = 0,
-                    TotalMutations = 0,
-                    Killed = 0,
-                    Survived = 0
-                }).ToList();
-            }
-
-            var json = await File.ReadAllTextAsync(latestReportPath);
-            using var doc = JsonDocument.Parse(json);
-            var filesJson = doc.RootElement.GetProperty("files");
-
-            // Build file → mutation summary dictionary
-            var mutationDict = new Dictionary<string, StrykerModel>();
-
-            foreach (var fileEntry in filesJson.EnumerateObject())
-            {
-                string fileName = Path.GetFileName(fileEntry.Name);
-                var mutations = fileEntry.Value.GetProperty("mutations").EnumerateArray();
-
-                int total = 0, killed = 0, survived = 0;
-
-                foreach (var mutation in mutations)
-                {
-                    total++;
-                    string status = mutation.GetProperty("status").GetString();
-                    if (status == "Killed") killed++;
-                    if (status == "Survived") survived++;
-                }
-
-                double score = total > 0 ? killed * 100.0 / total : 0.0;
-
-                mutationDict[fileName] = new StrykerModel
-                {
-                    ClassName = fileName,
-                    MutationScore = score,
-                    TotalMutations = total,
-                    Killed = killed,
-                    Survived = survived
-                };
-            }
-
-            // Match mutation data to actual source files by filename
-            var allResults = files
-                .Select(file =>
-                {
-                    var fileName = Path.GetFileName(file);
-                    if (mutationDict.TryGetValue(fileName, out var model))
-                    {
-                        return new StrykerModel
-                        {
-                            ClassName = file, // full path retained
-                            MutationScore = model.MutationScore,
-                            TotalMutations = model.TotalMutations,
-                            Killed = model.Killed,
-                            Survived = model.Survived
-                        };
-                    }
-
-                    // Not mutated or not found
-                    return new StrykerModel
-                    {
-                        ClassName = file,
-                        MutationScore = 0,
-                        TotalMutations = 0,
-                        Killed = 0,
-                        Survived = 0
-                    };
-                })
-                .ToList();
-
-            return allResults;
-        }
-
         public static async Task EnsureStrykerInstalled()
         {
             bool isInstalled = await IsStrykerInstalled();
@@ -140,6 +38,67 @@ namespace TestGenerator.Stryker
             }
         }
 
+        public static string GetLatestStrykerHtmlReport(string testProjectPath)
+        {
+            var strykerOutputPath = Path.Combine(testProjectPath, "StrykerOutput");
+
+            if (!Directory.Exists(strykerOutputPath))
+            {
+                Console.WriteLine("StrykerOutput directory not found.");
+                return null;
+            }
+
+            var latestReportDir = Directory.GetDirectories(strykerOutputPath)
+                .OrderByDescending(Directory.GetLastWriteTime)
+                .FirstOrDefault();
+
+            if (latestReportDir == null)
+            {
+                Console.WriteLine("No Stryker report directories found.");
+                return null;
+            }
+
+            var htmlPath = Path.Combine(latestReportDir, "reports", "mutation-report.html");
+
+            if (!File.Exists(htmlPath))
+            {
+                Console.WriteLine("mutation-report.html not found.");
+                return null;
+            }
+
+            return htmlPath;
+        }
+
+
+        public static string ExtractRelevantStrykerContent(string htmlPath)
+        {
+            var doc = new HtmlAgilityPack.HtmlDocument();
+            doc.Load(htmlPath);
+
+            var allText = doc.DocumentNode.InnerText;
+            var sb = new StringBuilder();
+
+            sb.AppendLine("🔬 Mutation Test Summary:\n");
+
+            // Grab lines containing useful stats
+            var lines = allText.Split('\n')
+                               .Select(line => line.Trim())
+                               .Where(line =>
+                                      line.StartsWith("Killed:", StringComparison.OrdinalIgnoreCase) ||
+                                      line.StartsWith("Survived:", StringComparison.OrdinalIgnoreCase) ||
+                                      line.StartsWith("Timeout:", StringComparison.OrdinalIgnoreCase) ||
+                                      line.StartsWith("No coverage:", StringComparison.OrdinalIgnoreCase) ||
+                                      line.StartsWith("Ignored:", StringComparison.OrdinalIgnoreCase) ||
+                                      line.StartsWith("mutation score", StringComparison.OrdinalIgnoreCase))
+                               .ToList();
+
+            foreach (var line in lines)
+            {
+                sb.AppendLine(line);
+            }
+
+            return sb.ToString();
+        }
         private static async Task<bool> IsStrykerInstalled()
         {
             try

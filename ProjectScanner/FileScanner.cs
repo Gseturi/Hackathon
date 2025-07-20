@@ -21,6 +21,7 @@ namespace TestGenerator.ProjectScanner
                                           normalized.Contains("/obj/") ||
                                           normalized.Contains("/test/") ||
                                           normalized.Contains(".tests/") ||
+                                          normalized.Contains("program") ||
                                           normalized.Contains("assemblyattributes.cs") ||
                                           normalized.EndsWith(".g.cs");
 

@@ -95,8 +95,16 @@ Methods:
 ❗ DO NOT add formatting like ```csharp
 ❗ Your response MUST begin with 'using' and contain only valid C#.
 ❗ use only the properties and fields used in the methods and classes do NOT add new properties like logger if the class doesnt have it!!
+❗ YOU CREATE ONLY TESTS YOU CREATE ONLY TESTS !!!!
 """;
         }
 
+        internal static string BuildReport(string htmlReport)
+        {
+            return $"You are a .NET test expert. I will send you the Stryker HTML report as text. " +
+                   $"Give me a JSON array of objects like this: " +
+                   $"[{{\"path\":\"ClassName.cs\",\"suggestion\":\"What test to add\"}}]. " +
+                   $"Only return the JSON array. No extra text. Report: {htmlReport}";
+        }
     }
 }
