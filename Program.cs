@@ -80,23 +80,27 @@ internal class Program
                 await Commands.RunCommand("dotnet", $"sln add {config["projectName"]}.Tests/{testProjectCsproj}", parent);
 
                 // Reference the main project from the test project
+                //await Commands.RunCommand("dotnet",
+                //    $"add {config["projectName"]}.Tests/{testProjectCsproj} reference ../{config["projectName"]}/{config["projectName"]}.csproj",
+                //    parent);
+
                 await Commands.RunCommand("dotnet",
-                    $"add {config["projectName"]}.Tests/{testProjectCsproj} reference ../{config["projectName"]}/{config["projectName"]}.csproj",
-                    parent);
+                    $"add {parent}/{config["projectName"]}.Tests/{testProjectCsproj} reference {defaultPath}/{Path.GetFileName(defaultPath)}.csproj",
+                    testProjectPath);
 
                 // Add NuGet packages one by one with error handling
                 var packages = new[]
                 {
-    "coverlet.collector",
-    "Moq",
-    "Microsoft.Extensions.Logging",
-    "Microsoft.Extensions.Logging.Abstractions",
-    "Microsoft.NET.Test.Sdk",
-    "xunit.runner.visualstudio",
-    "FluentAssertions",
-    "AutoFixture",
-    "AutoFixture.AutoMoq"
-};
+                    "coverlet.collector",
+                    "Moq",
+                    "Microsoft.Extensions.Logging",
+                    "Microsoft.Extensions.Logging.Abstractions",
+                    "Microsoft.NET.Test.Sdk",
+                    "xunit.runner.visualstudio",
+                    "FluentAssertions",
+                    "AutoFixture",
+                    "AutoFixture.AutoMoq"
+                };
 
                 foreach (var package in packages)
                 {
@@ -120,7 +124,7 @@ internal class Program
 
             var syntaxTrees = await CompilationLoader.LoadProjectAsync(
                 coverletResults
-                    .Where(cr => cr.Coverage < int.Parse(config["CoveregeThreashHold"]))
+                    .Where(cr => cr.Coverage * 100 < int.Parse(config["CoveregeThreashHold"]))
                     .Select(cr => cr.ClassName)
                     .ToList());
 
@@ -153,7 +157,7 @@ internal class Program
                 string className = kvp.Key;
                 string testCode = kvp.Value;
                 string safeFileName = string.Concat(className.Split(Path.GetInvalidFileNameChars()));
-                string testFilePath = testProjectPath + "/" + "temp"+count.ToString()+".cs";
+                string testFilePath = testProjectPath + "/" + className.Split('.').Last() + "Tests.cs";
                 count++;
                 await File.WriteAllTextAsync(testFilePath, testCode);
                 Console.WriteLine($"Test for class {className} written to: {testFilePath}");

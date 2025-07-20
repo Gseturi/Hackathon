@@ -65,7 +65,9 @@ Namespace: {classModel.Namespace}
 Methods:
 {methodsBuilder}
 
-Return only the full C# test class code using xUnit and Moq. No explanations or output other than the C# code. response goes into a .cs file dont write anything other than code. if you want to add comments use //
+❗ Output ONLY valid C# code that can be saved directly to a .cs file.
+❗ DO NOT add any explanations, comments outside code, or markdown formatting like ```csharp.
+❗ Your response MUST begin with 'using' and contain only valid C#.
 """;
         }
 

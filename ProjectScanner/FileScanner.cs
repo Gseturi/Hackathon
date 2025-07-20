@@ -12,8 +12,20 @@ namespace TestGenerator.ProjectScanner
         {
             return await Task.Run(() =>
                 Directory.GetFiles(projectPath, "*.cs", SearchOption.AllDirectories)
-                         .Where(file => !Path.GetFileName(file).ToLower().Contains("test"))
-                         .ToList());
+                    .Where(file =>
+                    {
+                        var normalized = file.Replace('\\', '/').ToLowerInvariant();
+                        return !normalized.Contains("/bin/") &&
+                               !normalized.Contains("/obj/") &&
+                               !normalized.Contains("/test/") &&
+                               !normalized.Contains(".tests/") &&
+                               !normalized.Contains("assemblyattributes.cs") &&
+                               !normalized.EndsWith(".g.cs") &&
+                               !Path.GetFileName(normalized).Contains("test");
+                    })
+                    .Select(Path.GetFullPath) // Ensure absolute paths
+                    .Select(path => path.Replace('\\', '/')) // Match Coverlet slashes
+                    .ToList());
         }
     }
 }

@@ -52,17 +52,30 @@ namespace TestGenerator.Coverlet
                 })
                 .ToDictionary(c => c.ClassName, c => c);
 
-            // 2. Ensure all files are included (even if not in the coverage report)
             var allCoverages = files
-                .Select(file => classCoverageDict.TryGetValue(file, out var model)
-                    ? model
-                    : new CoverletModel
-                    {
-                        ClassName = file,
-                        Coverage = 0.0
-                    })
-                .ToList();
+                .Select(file =>
+                {
+                    var fileName = Path.GetFileName(file); // extract just "ThisService.cs", etc.
 
+                    // Lookup in Coverlet results using just the filename
+                    if (classCoverageDict.TryGetValue(fileName, out var model))
+                    {
+                        // Match found, but replace ClassName with full path
+                        return new CoverletModel
+                        {
+                            ClassName = file,              // full path retained for output
+                            Coverage = model.Coverage
+                        };
+                    }
+
+                    // Not covered by tests
+                    return new CoverletModel
+                    {
+                        ClassName = file,                  // full path still used
+                        Coverage = 0.0
+                    };
+                })
+                .ToList();
             return allCoverages;
         }
     }
