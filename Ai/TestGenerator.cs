@@ -17,11 +17,23 @@ public class AiTestGenerator
         _apiKey = apiKey;
     }
 
+    private string Normalize(string name)
+    {
+        return Path.GetFileNameWithoutExtension(name)
+                   .Replace("Test", "", StringComparison.OrdinalIgnoreCase)
+                   .Trim()
+                   .ToLowerInvariant();
+    }
+
+
     public async Task<Dictionary<string, string>> GenerateUnitTestsAsync(List<ClassModel> classes)
     {
-        var tasks = classes.Select(async classModel =>
+        var tasks = classes.Where(cl => !cl.Name.Contains("Test")).Select(async classModel =>
         {
-            var testCode = await GenerateUnitTestForClassAsync(classModel);
+            ClassModel testClass = classes.FirstOrDefault(cl => Normalize(cl.Name) == Normalize(classModel.Name));
+            
+            var testCode = await GenerateUnitTestForClassAsync(classModel, testClass);
+            await Task.Delay(1000);
             string key = $"{classModel.Namespace}.{classModel.Name}";
             return new KeyValuePair<string, string>(key, testCode);
         });
@@ -30,9 +42,9 @@ public class AiTestGenerator
         return results.ToDictionary(pair => pair.Key, pair => pair.Value);
     }
 
-    private async Task<string> GenerateUnitTestForClassAsync(ClassModel classModel)
+    private async Task<string> GenerateUnitTestForClassAsync(ClassModel classModel, ClassModel testClassModel)
     {
-        string promp = PromptBuilder.BuildClassPromt(classModel);
+        string promp = PromptBuilder.BuildClassPromt(classModel, testClassModel);
 
         var requeustBody = new
         {

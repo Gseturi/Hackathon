@@ -32,20 +32,38 @@ Return only the C# xUnit test class code. Do not write explanations or comments 
 """;
         }
 
-        internal static string BuildClassPromt(ClassModel classModel)
+        internal static string BuildClassPromt(ClassModel classModel, ClassModel testClass = null)
         {
             var methodsBuilder = new StringBuilder();
+            var methodsBuilderTests = new StringBuilder();
+            var referenceClass = "";
+            if (testClass != null)
+            {
+                foreach (var method in testClass.Methods)
+                {
+                    methodsBuilderTests.AppendLine($"""
+                        Method: {method.Name}
+                        Return Type: {method.ReturnType}
+                        Parameters: {method.Parameters}
+                        Method Body:
+                        {method.Body}
+                        """);
+                }
+
+                referenceClass = $"reference test class methods for this class : {methodsBuilderTests}";
+            }
+
 
             foreach (var method in classModel.Methods)
             {
                 methodsBuilder.AppendLine($"""
-Method: {method.Name}
-Return Type: {method.ReturnType}
-Parameters: {method.Parameters}
-Method Body:
-{method.Body}
+                Method: {method.Name}
+                Return Type: {method.ReturnType}
+                Parameters: {method.Parameters}
+                Method Body:
+                {method.Body}
 
-""");
+                """);
             }
 
             return $"""
@@ -65,9 +83,12 @@ Namespace: {classModel.Namespace}
 Methods:
 {methodsBuilder}
 
+{referenceClass}
+
 ❗ Output ONLY valid C# code that can be saved directly to a .cs file.
 ❗ DO NOT add any explanations, comments outside code, or markdown formatting like ```csharp.
 ❗ Your response MUST begin with 'using' and contain only valid C#.
+❗ use only the properties and fields used in the methods and classes do NOT add new properties like logger if the class doesnt have it!!
 """;
         }
 

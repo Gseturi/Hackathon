@@ -121,12 +121,12 @@ internal class Program
             var coverletResults = await CoverletManager.GetCoveragePerClass(testProjectPath);
 
             Console.WriteLine($"Found {coverletResults.Count} C# files in the project.");
-
+            var testFiles = await FileScanner.GetCSharpTestFilesAsync(testProjectPath);
             var syntaxTrees = await CompilationLoader.LoadProjectAsync(
                 coverletResults
                     .Where(cr => cr.Coverage * 100 < int.Parse(config["CoveregeThreashHold"]))
                     .Select(cr => cr.ClassName)
-                    .ToList());
+                    .Union(testFiles).ToList());
 
             var publicClasses = await RoslynParser.GetClassModelsAsync(syntaxTrees);
 
