@@ -19,41 +19,78 @@ namespace TestGenerator.Projectanalyzer
             {
                 var semanticModel = compilation.GetSemanticModel(syntaxTree);
                 var root = await syntaxTree.GetRootAsync();
-                var methodDeclarations = root.DescendantNodes().OfType<MethodDeclarationSyntax>();
 
-                foreach (var method in methodDeclarations)
+                var classDeclarations = root.DescendantNodes().OfType<ClassDeclarationSyntax>();
+
+                foreach (var classDecl in classDeclarations)
                 {
-                    var symbol = semanticModel.GetDeclaredSymbol(method);
-                    if (symbol is null || symbol.DeclaredAccessibility != Accessibility.Public)
-                        continue;
+                    var symbol = semanticModel.GetDeclaredSymbol(classDecl);
+                    if (symbol == null) continue;
 
-                    var className = symbol.ContainingType?.ToDisplayString();
-                    if (className is null) continue;
+                    var fullName = symbol.ToDisplayString();
 
-                    var methodModel = new MethodModel
+                    var classModel = classMap.GetOrAdd(fullName, _ => new ClassModel
                     {
                         Name = symbol.Name,
-                        Parameters = string.Join(", ", symbol.Parameters.Select(p => $"{p.Type.ToDisplayString()} {p.Name}")),
-                        Body = method.Body?.ToString() ?? method.ExpressionBody?.ToString() ?? string.Empty,
-                        ReturnType = symbol.ReturnType.ToDisplayString(),
-                        ContainingClass = className,
-                        Namespace = symbol.ContainingNamespace?.ToDisplayString() ?? string.Empty,
-                        IsAsync = symbol.IsAsync
-                    };
-
-                    var classModel = classMap.GetOrAdd(className, _ => new ClassModel
-                    {
-                        Name = symbol.ContainingType.Name,
-                        Namespace = symbol.ContainingNamespace.ToDisplayString()
+                        Namespace = symbol.ContainingNamespace.ToDisplayString(),
+                        Usings = root.DescendantNodes()
+                                     .OfType<UsingDirectiveSyntax>()
+                                     .Select(u => u.Name.ToString())
+                                     .Distinct()
+                                     .ToList(),
+                        BaseTypes = classDecl.BaseList?.Types
+                                      .Select(bt => bt.Type.ToString())
+                                      .ToList() ?? new List<string>(),
+                        Fields = new List<string>(),
+                        Properties = new List<string>(),
+                        Methods = new List<MethodModel>()
                     });
 
-                    classModel.Methods.Add(methodModel);
+                    // Add fields
+                    var fields = classDecl.Members.OfType<FieldDeclarationSyntax>();
+                    foreach (var field in fields)
+                    {
+                        var fieldType = field.Declaration.Type.ToString();
+                        foreach (var variable in field.Declaration.Variables)
+                        {
+                            classModel.Fields.Add($"{fieldType} {variable.Identifier.Text}");
+                        }
+                    }
+
+                    // Add properties
+                    var properties = classDecl.Members.OfType<PropertyDeclarationSyntax>();
+                    foreach (var prop in properties)
+                    {
+                        classModel.Properties.Add($"{prop.Type} {prop.Identifier}");
+                    }
+
+                    // Add methods
+                    var methods = classDecl.Members.OfType<MethodDeclarationSyntax>();
+                    foreach (var method in methods)
+                    {
+                        var methodSymbol = semanticModel.GetDeclaredSymbol(method);
+                        if (methodSymbol == null) continue;
+
+                        var body = method.Body?.ToFullString() ?? method.ExpressionBody?.ToFullString() ?? string.Empty;
+
+                        classModel.Methods.Add(new MethodModel
+                        {
+                            Name = methodSymbol.Name,
+                            Parameters = string.Join(", ", methodSymbol.Parameters.Select(p => $"{p.Type} {p.Name}")),
+                            ReturnType = methodSymbol.ReturnType.ToDisplayString(),
+                            Body = body.Trim(),
+                            ContainingClass = fullName,
+                            Namespace = classModel.Namespace,
+                            IsAsync = methodSymbol.IsAsync
+                        });
+                    }
                 }
             });
 
             await Task.WhenAll(tasks);
             return classMap.Values.ToList();
         }
+
 
 
     }

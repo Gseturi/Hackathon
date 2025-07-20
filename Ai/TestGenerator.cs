@@ -44,22 +44,24 @@ public class AiTestGenerator
 
     private async Task<string> GenerateUnitTestForClassAsync(ClassModel classModel, ClassModel testClassModel)
     {
-        string promp = PromptBuilder.BuildClassPromt(classModel, testClassModel);
+        string prompt = PromptBuilder.BuildClassPromt(classModel, testClassModel);
 
-        var requeustBody = new
+        var requestBody = new
         {
             model = "gpt-4",
             messages = new[]
             {
-                new { role = "system", content = "You are a .NET unit test generator." },
-                new { role = "user", content = promp }
-            }
+            new { role = "system", content = "You are a .NET unit test generator." },
+            new { role = "user", content = prompt }
+        }
         };
 
-        var requestJson = JsonSerializer.Serialize(requeustBody);
+        var requestJson = JsonSerializer.Serialize(requestBody);
         var content = new StringContent(requestJson, Encoding.UTF8, "application/json");
+
         _httpClient.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", _apiKey);
+
         var response = await _httpClient.PostAsync("https://api.openai.com/v1/chat/completions", content);
         var responseBody = await response.Content.ReadAsStringAsync();
 
@@ -70,6 +72,7 @@ public class AiTestGenerator
                   .GetProperty("content")
                   .GetString() ?? string.Empty;
     }
+
 
     private async Task<string> GenerateUnitTestForMethodAsync(MethodModel method)
     {

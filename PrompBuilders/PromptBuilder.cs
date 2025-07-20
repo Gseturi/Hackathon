@@ -37,33 +37,33 @@ Return only the C# xUnit test class code. Do not write explanations or comments 
             var methodsBuilder = new StringBuilder();
             var methodsBuilderTests = new StringBuilder();
             var referenceClass = "";
+
             if (testClass != null)
             {
                 foreach (var method in testClass.Methods)
                 {
                     methodsBuilderTests.AppendLine($"""
-                        Method: {method.Name}
-                        Return Type: {method.ReturnType}
-                        Parameters: {method.Parameters}
-                        Method Body:
-                        {method.Body}
-                        """);
-                }
-
-                referenceClass = $"reference test class methods for this class : {methodsBuilderTests}";
-            }
-
-
-            foreach (var method in classModel.Methods)
-            {
-                methodsBuilder.AppendLine($"""
                 Method: {method.Name}
                 Return Type: {method.ReturnType}
                 Parameters: {method.Parameters}
                 Method Body:
                 {method.Body}
-
                 """);
+                }
+
+                referenceClass = $"reference test class methods for this class : {methodsBuilderTests}";
+            }
+
+            foreach (var method in classModel.Methods)
+            {
+                methodsBuilder.AppendLine($"""
+            Method: {method.Name}
+            Return Type: {method.ReturnType}
+            Parameters: {method.Parameters}
+            Method Body:
+            {method.Body}
+
+            """);
             }
 
             return $"""
