@@ -9,12 +9,12 @@ namespace TestGenerator.Coverlet
     {
         public static async Task CreateCoverageReport(string projectTestsPath)
         {
-
+            
             var temp = TestGenerator.Commands.Commands.RunCommand(
-                    "dotnet",
-                    "stryker",
-                    projectTestsPath
-                );
+                "dotnet",
+                @"test --collect:""XPlat Code Coverage""",
+                projectTestsPath
+            );
 
             await Task.WhenAll(temp, TestGenerator.Animations.Animations.ShowSpinnerAsync("generating coverlet..", temp));
         }

@@ -10,7 +10,7 @@ namespace TestGenerator.Stryker
         {
             var process = TestGenerator.Commands.Commands.RunCommand(
                 "dotnet",
-                "stryker --reporters json --reporters html --reporters cobertura",
+                "stryker",
                 testProjectPath
             );
 
