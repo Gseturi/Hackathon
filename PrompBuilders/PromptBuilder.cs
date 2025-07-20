@@ -28,6 +28,7 @@ Parameters: {model.Parameters}
 Method Body:
 {model.Body}
 
+
 Return only the C# xUnit test class code. Do not write explanations or comments unless they are in code.
 """;
         }
@@ -53,7 +54,6 @@ Return only the C# xUnit test class code. Do not write explanations or comments 
 
                 referenceClass = $"reference test class methods for this class : {methodsBuilderTests}";
             }
-
             foreach (var method in classModel.Methods)
             {
                 methodsBuilder.AppendLine($"""
@@ -62,6 +62,7 @@ Return only the C# xUnit test class code. Do not write explanations or comments 
             Parameters: {method.Parameters}
             Method Body:
             {method.Body}
+           
 
             """);
             }
@@ -79,6 +80,7 @@ Write a single C# unit test class covering all the following methods in one test
 
 Class: {classModel.Name}
 Namespace: {classModel.Namespace}
+fullbody: {classModel.FullClassBody}
 
 Methods:
 {methodsBuilder}
@@ -87,6 +89,10 @@ Methods:
 
 ❗ Output ONLY valid C# code that can be saved directly to a .cs file.
 ❗ DO NOT add any explanations, comments outside code, or markdown formatting like ```csharp.
+❗ DO NOT add formatting like ```
+❗ DO NOT add formatting like ```csharp
+❗ DO NOT add formatting like ```
+❗ DO NOT add formatting like ```csharp
 ❗ Your response MUST begin with 'using' and contain only valid C#.
 ❗ use only the properties and fields used in the methods and classes do NOT add new properties like logger if the class doesnt have it!!
 """;

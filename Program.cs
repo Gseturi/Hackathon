@@ -13,6 +13,7 @@ using TestGenerator.Coverlet;
 using TestGenerator.Models;
 using TestGenerator.Projectanalyzer;
 using TestGenerator.ProjectScanner;
+using TestGenerator.Stryker;
 
 internal class Program
 {
@@ -65,6 +66,7 @@ internal class Program
         //C:\Users\mylaptop.ge\source\repos\DI\
         if (args.Contains("--scan"))
         {
+            await StrykerManager.EnsureStrykerInstalled();
             Console.WriteLine($"🔍 Scanning project at: {defaultPath}");
             var testProjectCsproj = $"{config["projectName"]}.Tests.csproj";
             if (!Directory.Exists(testProjectPath))
@@ -163,8 +165,26 @@ internal class Program
                 Console.WriteLine($"Test for class {className} written to: {testFilePath}");
             }
 
-
-
+            Console.WriteLine("final coverage result -------------------- ");
+            Console.WriteLine();
+            await CoverletManager.CreateCoverageReport(testProjectPath);
+            var coverletResultsNew = await CoverletManager.GetCoveragePerClass(testProjectPath);
+            foreach (var coverletResult in coverletResultsNew)
+            {
+                bool isAboveThreshold = coverletResult.Coverage * 100 > int.Parse(config["CoveregeThreashHold"]);
+                Console.ForegroundColor = isAboveThreshold ? ConsoleColor.Green : ConsoleColor.Red;
+                Console.WriteLine($"Class: {coverletResult.ClassName}, Coverage: {coverletResult.Coverage * 100} %");
+            }
+            Console.WriteLine("final mutation result -------------------- ");
+            Console.WriteLine();
+            await StrykerManager.CreateMutationReport(testProjectPath);
+            var strykerResults = await StrykerManager.GetMutationPerClass(testProjectPath);
+            foreach (var strykerResult in strykerResults)
+            {
+                bool isAboveThreshold = strykerResult.MutationScore > int.Parse(config["CoveregeThreashHold"]);
+                Console.ForegroundColor = isAboveThreshold ? ConsoleColor.Green : ConsoleColor.Red;
+                Console.WriteLine($"Class: {strykerResult.ClassName}, Mutation Score: {strykerResult.MutationScore} %");
+            }
             return;
         }
 

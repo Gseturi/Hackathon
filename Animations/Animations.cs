@@ -26,7 +26,10 @@ namespace TestGenerator.Animations
                 }
                 else
                 {
-                    Console.SetCursorPosition(Console.CursorLeft - 1, Console.CursorTop);
+                    if (Console.CursorLeft > 0)
+                    {
+                        Console.SetCursorPosition(Console.CursorLeft - 1, Console.CursorTop);
+                    }
                 }
 
                 i++;

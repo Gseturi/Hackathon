@@ -48,7 +48,7 @@ public class AiTestGenerator
 
         var requestBody = new
         {
-            model = "gpt-4",
+            model = "gpt-4o",
             messages = new[]
             {
             new { role = "system", content = "You are a .NET unit test generator." },
@@ -72,7 +72,6 @@ public class AiTestGenerator
                   .GetProperty("content")
                   .GetString() ?? string.Empty;
     }
-
 
     private async Task<string> GenerateUnitTestForMethodAsync(MethodModel method)
     {
